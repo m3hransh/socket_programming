@@ -3,12 +3,26 @@ import selectors
 import json
 import io
 import struct
+import socket
 
 request_search = {
     "morpheus": "Follow the white rabbit. \U0001f430",
     "ring": "In the caves beneath the Misty Mountains. \U0001f48d",
     "\U0001f436": "\U0001f43e Playing ball! \U0001f3d0",
 }
+def translation_server(message):
+    server_name = '127.0.0.1'
+    server_port = 65123
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        try:
+            s.sendto(message.encode(), (server_name, server_port))
+            modified_message, _ = s.recvfrom(2048)
+            return modified_message.decode() 
+        except Exception as e:
+            print(e)
+            return 'translation server is unreachable'
+        finally:
+            s.close()
 
 
 class Message:
@@ -48,7 +62,7 @@ class Message:
                 self._recv_buffer += data
             else:
                 self.close()
-            
+
     def _write(self):
         if self._send_buffer:
             print("sending", repr(self._send_buffer), "to", self.addr)
@@ -75,9 +89,9 @@ class Message:
         tiow.close()
         return obj
 
-    def _create_message(
-        self, *, content_bytes, content_type, content_encoding
-    ):
+    def _create_message(self, *, content_bytes, content_type,
+                        content_encoding
+                        ):
         jsonheader = {
             "byteorder": sys.byteorder,
             "content-type": content_type,
@@ -88,12 +102,12 @@ class Message:
         message_hdr = struct.pack(">H", len(jsonheader_bytes))
         message = message_hdr + jsonheader_bytes + content_bytes
         return message
-
+    
     def _create_response_json_content(self):
         action = self.request.get("action")
         if action == "search":
             query = self.request.get("value")
-            answer = request_search.get(query) or f'No match for "{query}".'
+            answer = translation_server(query)
             content = {"result": answer}
         else:
             content = {"result": f'Error: invalid action "{action}".'}
